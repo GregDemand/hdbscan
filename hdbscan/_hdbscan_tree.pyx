@@ -161,7 +161,7 @@ cpdef np.ndarray condense_tree(np.ndarray[np.double_t, ndim=2] hierarchy,
                                         ('child_size', np.intp)])
 
 
-cpdef dict compute_stability(np.ndarray condensed_tree):
+cpdef dict compute_stability(np.ndarray condensed_tree, metric_range=(0., np.inf)):
 
     cdef np.ndarray[np.double_t, ndim=1] result_arr
     cdef np.ndarray sorted_child_data
@@ -179,6 +179,8 @@ cpdef dict compute_stability(np.ndarray condensed_tree):
     cdef np.intp_t current_child
     cdef np.float64_t lambda_
     cdef np.float64_t min_lambda
+    cdef np.float64_t min_lambda_range
+    cdef np.float64_t max_lambda_range
 
     cdef np.ndarray[np.double_t, ndim=1] births_arr
     cdef np.double_t *births
@@ -202,8 +204,21 @@ cpdef dict compute_stability(np.ndarray condensed_tree):
     sizes = condensed_tree['child_size']
     lambdas = condensed_tree['lambda_val']
 
+    if metric_range[0] != 0.0:
+        max_lambda_range = 1.0 / metric_range[0]
+    else:
+        max_lambda_range = np.inf
+
+    if metric_range[1] != 0.0:
+        min_lambda_range = 1.0 / metric_range[1]
+    else:
+        min_lambda_range = np.inf
+
+    sorted_lambdas = np.array([min(max_lambda_range, max(min_lambda_range, x)) for x in sorted_lambdas])
+    lambdas = np.array([min(max_lambda_range, max(min_lambda_range, x)) for x in lambdas])
+
     current_child = -1
-    min_lambda = 0
+    min_lambda = min_lambda_range
 
     for row in range(sorted_child_data.shape[0]):
         child = <np.intp_t> sorted_children[row]
@@ -222,7 +237,7 @@ cpdef dict compute_stability(np.ndarray condensed_tree):
 
     if current_child != -1:
         births[current_child] = min_lambda
-    births[smallest_cluster] = 0.0
+    births[smallest_cluster] = min_lambda_range
 
     result_arr = np.zeros(num_clusters, dtype=np.double)
 
@@ -652,7 +667,8 @@ cpdef tuple get_clusters(np.ndarray tree, dict stability,
                          cluster_selection_method='eom',
                          allow_single_cluster=False,
                          match_reference_implementation=False,
-                         cluster_selection_epsilon=0.0):
+                         cluster_selection_epsilon=0.0,
+                         metric_range=(0, np.inf)):
     """Given a tree and stability dict, produce the cluster labels
     (and probabilities) for a flat clustering based on the chosen
     cluster selection method.
@@ -680,6 +696,9 @@ cpdef tuple get_clusters(np.ndarray tree, dict stability,
 
     cluster_selection_epsilon: float, optional (default 0.0)
         A distance threshold for cluster splits.
+
+    metric_range : tuple (float, float), optional (default (0, np.inf))
+        A tuple containing the minimum and maximum value of the metric.
 
     Returns
     -------
@@ -717,7 +736,11 @@ cpdef tuple get_clusters(np.ndarray tree, dict stability,
     cluster_tree = tree[tree['child_size'] > 1]
     is_cluster = {cluster: True for cluster in node_list}
     num_points = np.max(tree[tree['child_size'] == 1]['child']) + 1
-    max_lambda = np.max(tree['lambda_val'])
+
+    if metric_range[0] == 0.0:
+        max_lambda = np.max(tree['lambda_val'])
+    else:
+        max_lambda = min(1.0/metric_range[0], np.max(tree['lambda_val']))
 
     if cluster_selection_method == 'eom':
         for node in node_list:
@@ -756,10 +779,10 @@ cpdef tuple get_clusters(np.ndarray tree, dict stability,
             selected_clusters = leaves
 
         for c in is_cluster:
-                if c in selected_clusters:
-                    is_cluster[c] = True
-                else:
-                    is_cluster[c] = False
+            if c in selected_clusters:
+                is_cluster[c] = True
+            else:
+                is_cluster[c] = False
     else:
         raise ValueError('Invalid Cluster Selection Method: %s\n'
                          'Should be one of: "eom", "leaf"\n')

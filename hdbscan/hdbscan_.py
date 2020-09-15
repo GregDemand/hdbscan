@@ -49,19 +49,21 @@ def _tree_to_labels(X, single_linkage_tree, min_cluster_size=10,
                     cluster_selection_method='eom',
                     allow_single_cluster=False,
                     match_reference_implementation=False,
-					cluster_selection_epsilon=0.0):
+                    cluster_selection_epsilon=0.0,
+                    metric_range=(0.0, np.inf)):
     """Converts a pretrained tree and cluster size into a
     set of labels and probabilities.
     """
     condensed_tree = condense_tree(single_linkage_tree,
                                    min_cluster_size)
-    stability_dict = compute_stability(condensed_tree)
+    stability_dict = compute_stability(condensed_tree, metric_range)
     labels, probabilities, stabilities = get_clusters(condensed_tree,
                                                       stability_dict,
                                                       cluster_selection_method,
                                                       allow_single_cluster,
                                                       match_reference_implementation,
-													  cluster_selection_epsilon)
+                                                      cluster_selection_epsilon,
+                                                      metric_range)
 
     return (labels, probabilities, stabilities, condensed_tree,
             single_linkage_tree)
@@ -335,7 +337,8 @@ def hdbscan(X, min_cluster_size=5, min_samples=None, alpha=1.0, cluster_selectio
             approx_min_span_tree=True, gen_min_span_tree=False,
             core_dist_n_jobs=4,
             cluster_selection_method='eom', allow_single_cluster=False,
-            match_reference_implementation=False, **kwargs):
+            match_reference_implementation=False,
+            metric_range=(0., np.inf), **kwargs):
     """Perform HDBSCAN clustering from a vector array or distance matrix.
 
     Parameters
@@ -433,6 +436,10 @@ def hdbscan(X, min_cluster_size=5, min_samples=None, alpha=1.0, cluster_selectio
         in clustering results. Setting this flag to True will, at a some
         performance cost, ensure that the clustering results match the
         reference implementation.
+
+
+    metric_range : tuple (float, float), optional (default (0., np.inf))
+        A tuple containing the minimum and maximum value of the metric.
 
     **kwargs : optional
         Arguments passed to the distance metric
@@ -635,7 +642,8 @@ def hdbscan(X, min_cluster_size=5, min_samples=None, alpha=1.0, cluster_selectio
                            cluster_selection_method,
                            allow_single_cluster,
                            match_reference_implementation,
-						   cluster_selection_epsilon) + \
+                           cluster_selection_epsilon,
+                           metric_range) + \
             (result_min_span_tree,)
 
 
@@ -748,6 +756,10 @@ class HDBSCAN(BaseEstimator, ClusterMixin):
         performance cost, ensure that the clustering results match the
         reference implementation.
 
+
+    metric_range : tuple (float, float), optional (default (0., np.inf))
+        A tuple containing the minimum and maximum value of the metric.
+
     **kwargs : optional
         Arguments passed to the distance metric
 
@@ -851,7 +863,8 @@ class HDBSCAN(BaseEstimator, ClusterMixin):
                  cluster_selection_method='eom',
                  allow_single_cluster=False,
                  prediction_data=False,
-                 match_reference_implementation=False, **kwargs):
+                 match_reference_implementation=False,
+                 metric_range=(0., np.inf), **kwargs):
         self.min_cluster_size = min_cluster_size
         self.min_samples = min_samples
         self.alpha = alpha
@@ -867,6 +880,7 @@ class HDBSCAN(BaseEstimator, ClusterMixin):
         self.cluster_selection_method = cluster_selection_method
         self.allow_single_cluster = allow_single_cluster
         self.match_reference_implementation = match_reference_implementation
+        self.metric_range = [float(x) for x in metric_range]
         self.prediction_data = prediction_data
 
         self._metric_kwargs = kwargs
