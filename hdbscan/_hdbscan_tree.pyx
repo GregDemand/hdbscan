@@ -93,67 +93,72 @@ cpdef np.ndarray condense_tree(np.ndarray[np.double_t, ndim=2] hierarchy,
     result_list = []
     ignore = np.zeros(len(node_list), dtype=np.int)
 
-    for node in node_list:
-        if ignore[node] or node < num_points:
-            continue
+    if condensation_mode == 'standard':
 
-        children = hierarchy[node - num_points]
-        left = <np.intp_t> children[0]
-        right = <np.intp_t> children[1]
-        if children[2] > 0.0:
-            lambda_value = 1.0 / children[2]
-        else:
-            lambda_value = INFTY
+        for node in node_list:
+            if ignore[node] or node < num_points:
+                continue
 
-        if left >= num_points:
-            left_count = <np.intp_t> hierarchy[left - num_points][3]
-        else:
-            left_count = 1
+            children = hierarchy[node - num_points]
+            left = <np.intp_t> children[0]
+            right = <np.intp_t> children[1]
+            if children[2] > 0.0:
+                lambda_value = 1.0 / children[2]
+            else:
+                lambda_value = INFTY
 
-        if right >= num_points:
-            right_count = <np.intp_t> hierarchy[right - num_points][3]
-        else:
-            right_count = 1
+            if left >= num_points:
+                left_count = <np.intp_t> hierarchy[left - num_points][3]
+            else:
+                left_count = 1
 
-        if left_count >= min_cluster_size and right_count >= min_cluster_size:
-            relabel[left] = next_label
-            next_label += 1
-            result_list.append((relabel[node], relabel[left], lambda_value,
-                                left_count))
+            if right >= num_points:
+                right_count = <np.intp_t> hierarchy[right - num_points][3]
+            else:
+                right_count = 1
 
-            relabel[right] = next_label
-            next_label += 1
-            result_list.append((relabel[node], relabel[right], lambda_value,
-                                right_count))
+            if left_count >= min_cluster_size and right_count >= min_cluster_size:
+                relabel[left] = next_label
+                next_label += 1
+                result_list.append((relabel[node], relabel[left], lambda_value,
+                                    left_count))
 
-        elif left_count < min_cluster_size and right_count < min_cluster_size:
-            for sub_node in bfs_from_hierarchy(hierarchy, left):
-                if sub_node < num_points:
-                    result_list.append((relabel[node], sub_node,
-                                        lambda_value, 1))
-                ignore[sub_node] = True
+                relabel[right] = next_label
+                next_label += 1
+                result_list.append((relabel[node], relabel[right], lambda_value,
+                                    right_count))
 
-            for sub_node in bfs_from_hierarchy(hierarchy, right):
-                if sub_node < num_points:
-                    result_list.append((relabel[node], sub_node,
-                                        lambda_value, 1))
-                ignore[sub_node] = True
+            elif left_count < min_cluster_size and right_count < min_cluster_size:
+                for sub_node in bfs_from_hierarchy(hierarchy, left):
+                    if sub_node < num_points:
+                        result_list.append((relabel[node], sub_node,
+                                            lambda_value, 1))
+                    ignore[sub_node] = True
 
-        elif left_count < min_cluster_size:
-            relabel[right] = relabel[node]
-            for sub_node in bfs_from_hierarchy(hierarchy, left):
-                if sub_node < num_points:
-                    result_list.append((relabel[node], sub_node,
-                                        lambda_value, 1))
-                ignore[sub_node] = True
+                for sub_node in bfs_from_hierarchy(hierarchy, right):
+                    if sub_node < num_points:
+                        result_list.append((relabel[node], sub_node,
+                                            lambda_value, 1))
+                    ignore[sub_node] = True
 
-        else:
-            relabel[left] = relabel[node]
-            for sub_node in bfs_from_hierarchy(hierarchy, right):
-                if sub_node < num_points:
-                    result_list.append((relabel[node], sub_node,
-                                        lambda_value, 1))
-                ignore[sub_node] = True
+            elif left_count < min_cluster_size:
+                relabel[right] = relabel[node]
+                for sub_node in bfs_from_hierarchy(hierarchy, left):
+                    if sub_node < num_points:
+                        result_list.append((relabel[node], sub_node,
+                                            lambda_value, 1))
+                    ignore[sub_node] = True
+
+            else:
+                relabel[left] = relabel[node]
+                for sub_node in bfs_from_hierarchy(hierarchy, right):
+                    if sub_node < num_points:
+                        result_list.append((relabel[node], sub_node,
+                                            lambda_value, 1))
+                    ignore[sub_node] = True
+    else:
+        raise ValueError('Invalid Tree Condensation Method: %s\n'
+                         'Should be one of: "standard"\n')
 
     return np.array(result_list, dtype=[('parent', np.intp),
                                         ('child', np.intp),
