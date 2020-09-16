@@ -439,7 +439,8 @@ def hdbscan(X, min_cluster_size=5, min_samples=None, alpha=1.0, cluster_selectio
 
 
     metric_range : tuple (float, float), optional (default (0., np.inf))
-        A tuple containing the minimum and maximum value of the metric.
+        Used to determine the minimum and maximum lambda values for
+        lambda_birth and lambda_death when calculating cluster stability.
 
     **kwargs : optional
         Arguments passed to the distance metric
@@ -758,7 +759,8 @@ class HDBSCAN(BaseEstimator, ClusterMixin):
 
 
     metric_range : tuple (float, float), optional (default (0., np.inf))
-        A tuple containing the minimum and maximum value of the metric.
+        Used to determine the minimum and maximum lambda values for
+        lambda_birth and lambda_death when calculating cluster stability.
 
     **kwargs : optional
         Arguments passed to the distance metric

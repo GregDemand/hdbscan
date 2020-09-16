@@ -698,7 +698,8 @@ cpdef tuple get_clusters(np.ndarray tree, dict stability,
         A distance threshold for cluster splits.
 
     metric_range : tuple (float, float), optional (default (0, np.inf))
-        A tuple containing the minimum and maximum value of the metric.
+        Used to determine the minimum and maximum lambda values for
+        lambda_birth and lambda_death when calculating cluster stability.
 
     Returns
     -------
