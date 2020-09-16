@@ -128,12 +128,11 @@ class CondensedTree(object):
             split = self._raw_tree[['child', 'lambda_val']]
             split = split[(self._raw_tree['parent'] == cluster) &
                           (self._raw_tree['child_size'] > 1)]
-            if len(split['child']) > 1:
-                left_child, right_child = split['child']
-                cluster_x_coords[cluster] = np.mean([cluster_x_coords[left_child],
-                                                     cluster_x_coords[right_child]])
-                cluster_y_coords[left_child] = split['lambda_val'][0]
-                cluster_y_coords[right_child] = split['lambda_val'][1]
+            if len(split['child']) > 0:
+                cluster_x_coords[cluster] = np.mean([cluster_x_coords[x] for x in split['child']])
+
+                for children in split:
+                    cluster_y_coords[children['child']] = children['lambda_val']
 
         # We use bars to plot the 'icicles', so we need to generate centers, tops,
         # bottoms and widths for each rectangle. We can go through each cluster
