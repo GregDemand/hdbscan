@@ -50,12 +50,14 @@ def _tree_to_labels(X, single_linkage_tree, min_cluster_size=10,
                     allow_single_cluster=False,
                     match_reference_implementation=False,
                     cluster_selection_epsilon=0.0,
+                    condensation_mode='standard',
                     metric_range=(0.0, np.inf)):
     """Converts a pretrained tree and cluster size into a
     set of labels and probabilities.
     """
     condensed_tree = condense_tree(single_linkage_tree,
-                                   min_cluster_size)
+                                   min_cluster_size,
+                                   condensation_mode)
     stability_dict = compute_stability(condensed_tree, metric_range)
     labels, probabilities, stabilities = get_clusters(condensed_tree,
                                                       stability_dict,
@@ -337,7 +339,7 @@ def hdbscan(X, min_cluster_size=5, min_samples=None, alpha=1.0, cluster_selectio
             approx_min_span_tree=True, gen_min_span_tree=False,
             core_dist_n_jobs=4,
             cluster_selection_method='eom', allow_single_cluster=False,
-            match_reference_implementation=False,
+            match_reference_implementation=False, condensation_mode='standard',
             metric_range=(0., np.inf), **kwargs):
     """Perform HDBSCAN clustering from a vector array or distance matrix.
 
@@ -437,6 +439,12 @@ def hdbscan(X, min_cluster_size=5, min_samples=None, alpha=1.0, cluster_selectio
         performance cost, ensure that the clustering results match the
         reference implementation.
 
+    condensation_mode : string, optional (default 'standard')
+        The method used for condensing trees.  The standard method is akin
+        to the runt pruning procedure of Stuetzel.  The alternate option
+        'group_equidistant_nodes' condenses adjacent equidistant edges as a
+        group, which is relevant when using metrics that produce discrete
+        distances.
 
     metric_range : tuple (float, float), optional (default (0., np.inf))
         Used to determine the minimum and maximum lambda values for
@@ -644,6 +652,7 @@ def hdbscan(X, min_cluster_size=5, min_samples=None, alpha=1.0, cluster_selectio
                            allow_single_cluster,
                            match_reference_implementation,
                            cluster_selection_epsilon,
+                           condensation_mode,
                            metric_range) + \
             (result_min_span_tree,)
 
@@ -757,6 +766,12 @@ class HDBSCAN(BaseEstimator, ClusterMixin):
         performance cost, ensure that the clustering results match the
         reference implementation.
 
+    condensation_mode : string, optional (default 'standard')
+        The method used for condensing trees.  The standard method is akin
+        to the runt pruning procedure of Stuetzel.  The alternate option
+        'group_equidistant_nodes' condenses adjacent equidistant edges as a
+        group, which is relevant when using metrics that produce discrete
+        distances.
 
     metric_range : tuple (float, float), optional (default (0., np.inf))
         Used to determine the minimum and maximum lambda values for
@@ -866,6 +881,7 @@ class HDBSCAN(BaseEstimator, ClusterMixin):
                  allow_single_cluster=False,
                  prediction_data=False,
                  match_reference_implementation=False,
+                 condensation_mode='standard',
                  metric_range=(0., np.inf), **kwargs):
         self.min_cluster_size = min_cluster_size
         self.min_samples = min_samples
@@ -882,6 +898,7 @@ class HDBSCAN(BaseEstimator, ClusterMixin):
         self.cluster_selection_method = cluster_selection_method
         self.allow_single_cluster = allow_single_cluster
         self.match_reference_implementation = match_reference_implementation
+        self.condensation_mode = condensation_mode
         self.metric_range = [float(x) for x in metric_range]
         self.prediction_data = prediction_data
 

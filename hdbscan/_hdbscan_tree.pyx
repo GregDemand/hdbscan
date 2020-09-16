@@ -40,8 +40,45 @@ cdef list bfs_from_hierarchy(np.ndarray[np.double_t, ndim=2] hierarchy,
     return result
 
 
+cdef list bfs_at_distance_from_hierarchy(np.ndarray[np.double_t, ndim=2] hierarchy,
+                                         np.intp_t bfs_root, np.int_t min_cluster_size):
+    """
+    Perform a breadth first search of nodes at a specific distance on a tree in scipy hclust format.
+    """
+
+    cdef list to_process
+    cdef np.intp_t max_node
+    cdef np.intp_t num_points
+    cdef np.intp_t dim
+
+    dim = hierarchy.shape[0]
+    max_node = 2 * dim
+    num_points = max_node - dim + 1
+
+    if bfs_root >= num_points:
+        root_distance = hierarchy[bfs_root - num_points][2]
+    else:
+        root_distance = -1
+
+    to_process = [bfs_root]
+    inner_nodes = []
+    outer_nodes = []
+
+    while to_process:
+        outer_nodes.extend([x for x in to_process if (x < num_points or (hierarchy[x - num_points][2] != root_distance))])
+        inner_nodes.extend([x for x in to_process if (x >= num_points and ((hierarchy[x - num_points][2] == root_distance) or (hierarchy[x - num_points][3] < min_cluster_size)))])
+
+        to_process = [x - num_points for x in to_process if (x >= num_points and ((hierarchy[x - num_points][2] == root_distance) or (hierarchy[x - num_points][3] < min_cluster_size)))]
+
+        if to_process:
+            to_process = hierarchy[to_process,
+                                   :2].flatten().astype(np.intp).tolist()
+
+    return [inner_nodes, outer_nodes]
+
+
 cpdef np.ndarray condense_tree(np.ndarray[np.double_t, ndim=2] hierarchy,
-                               np.intp_t min_cluster_size=10):
+                               np.intp_t min_cluster_size=10, condensation_mode='standard'):
     """Condense a tree according to a minimum cluster size. This is akin
     to the runt pruning procedure of Stuetzle. The result is a much simpler
     tree that is easier to visualize. We include extra information on the
@@ -56,6 +93,12 @@ cpdef np.ndarray condense_tree(np.ndarray[np.double_t, ndim=2] hierarchy,
     min_cluster_size : int, optional (default 10)
         The minimum size of clusters to consider. Smaller "runt"
         clusters are pruned from the tree.
+
+    condensation_mode : string, optional (default 'standard')
+        The method used for condensing trees.  The standard method is akin to the runt pruning
+        procedure of Stuetzel.  The alternative option 'group_equidistant_nodes' is similar,
+        except that it condenses adjacent equidistant edges as a group, which is relevant when
+        using metrics that produce discrete distances.
 
     Returns
     -------
@@ -73,6 +116,8 @@ cpdef np.ndarray condense_tree(np.ndarray[np.double_t, ndim=2] hierarchy,
     cdef np.ndarray[np.intp_t, ndim=1] relabel
     cdef np.ndarray[np.int_t, ndim=1] ignore
     cdef np.ndarray[np.double_t, ndim=1] children
+    cdef np.ndarray[np.int_t, ndim=1] parent
+    cdef np.ndarray[np.int_t, ndim=1] parent_of_children
 
     cdef np.intp_t node
     cdef np.intp_t sub_node
@@ -91,9 +136,10 @@ cpdef np.ndarray condense_tree(np.ndarray[np.double_t, ndim=2] hierarchy,
     relabel = np.empty(root + 1, dtype=np.intp)
     relabel[root] = num_points
     result_list = []
-    ignore = np.zeros(len(node_list), dtype=np.int)
 
     if condensation_mode == 'standard':
+
+        ignore = np.zeros(len(node_list), dtype=np.int)
 
         for node in node_list:
             if ignore[node] or node < num_points:
@@ -156,9 +202,76 @@ cpdef np.ndarray condense_tree(np.ndarray[np.double_t, ndim=2] hierarchy,
                         result_list.append((relabel[node], sub_node,
                                             lambda_value, 1))
                     ignore[sub_node] = True
+    elif condensation_mode == 'group_equidistant_nodes':
+
+        parent = np.empty(root + 1, dtype=np.intp)
+        parent_of_children = np.arange(root + 1, dtype=np.intp)
+
+        parent[root] = root
+
+        for node in node_list:
+            if node < num_points:
+                if hierarchy[parent[node] - num_points][2] > 0.0:
+                    current_lambda_value = 1 / hierarchy[parent[node] - num_points][2]
+                else:
+                    current_lambda_value = INFTY
+                result_list.append((relabel[parent_of_children[parent[node]]], node, current_lambda_value, 1))
+
+            elif parent_of_children[node] == node:
+
+                children = hierarchy[node - num_points]
+                left = <np.intp_t> children[0]
+                right = <np.intp_t> children[1]
+                parent[left] = node
+                parent[right] = node
+                if children[2] > 0.0:
+                    lambda_val = 1.0 / children[2]
+                else:
+                    lambda_val = INFTY
+
+                if node >= num_points:
+                    number_of_children = <np.intp_t> hierarchy[node - num_points][3]
+                else:
+                    number_of_children = 1
+
+                if left >= num_points:
+                    left_count = <np.intp_t> hierarchy[left - num_points][3]
+                else:
+                    left_count = 1
+
+                if right >= num_points:
+                    right_count = <np.intp_t> hierarchy[right - num_points][3]
+                else:
+                    right_count = 1
+
+                inner_nodes, outer_nodes = bfs_at_distance_from_hierarchy(hierarchy, node, min_cluster_size)
+
+                for sub_node in inner_nodes:
+                    parent_of_children[sub_node] = node
+
+                for sub_node in outer_nodes:
+                    if sub_node < num_points or (<np.intp_t> hierarchy[sub_node - num_points][3] < min_cluster_size):
+                        parent_of_children[sub_node] = node
+
+                if node != root:
+                    relabel[node] = next_label
+                    next_label += 1
+
+                    if hierarchy[parent[node] - num_points][2] > 0.0:
+                        current_lambda_value = 1 / hierarchy[parent[node] - num_points][2]
+                    else:
+                        current_lambda_value = INFTY
+
+                    result_list.append((relabel[parent_of_children[parent[node]]], relabel[node], current_lambda_value, number_of_children))
+            else:
+                children = hierarchy[node - num_points]
+                left = <np.intp_t> children[0]
+                right = <np.intp_t> children[1]
+                parent[left] = node
+                parent[right] = node
     else:
         raise ValueError('Invalid Tree Condensation Method: %s\n'
-                         'Should be one of: "standard"\n')
+                         'Should be one of: "standard", "group_equidistant_nodes"\n')
 
     return np.array(result_list, dtype=[('parent', np.intp),
                                         ('child', np.intp),
