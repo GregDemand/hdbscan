@@ -82,6 +82,7 @@ METRIC_MAPPING = {'euclidean': EuclideanDistance,
                   'braycurtis': BrayCurtisDistance,
                   'matching': MatchingDistance,
                   'jaccard': JaccardDistance,
+                  'jaccard_dense': JaccardDenseDistance,
                   'dice': DiceDistance,
                   'kulsinski': KulsinskiDistance,
                   'rogerstanimoto': RogersTanimotoDistance,
@@ -724,6 +725,35 @@ cdef class HammingDistance(DistanceMetric):
             if x1[j] != x2[j]:
                 n_unequal += 1
         return float(n_unequal) / size
+
+
+#------------------------------------------------------------
+# Jaccard Distance (integer)
+#  d = D(x, y) = N_unequal(x, y) / N_nonzero(x, y)
+cdef class JaccardDenseDistance(DistanceMetric):
+    r"""Jaccard Distance
+
+    Jaccard Dense Distance is a dissimilarity measure for integer-valued
+    vectors. All non-negative entries will be treated as as specific categories, negative entries will
+    be treated as missing categories.
+
+    .. math::
+       D(x, y) = \frac{N_{TF} + N_{FT}}{N_{TT} + N_{TF} + N_{FT}}
+    """
+    cdef inline DTYPE_t dist(self, DTYPE_t* x1, DTYPE_t* x2,
+                             ITYPE_t size) nogil except -1:
+        cdef int n_unequal = 0
+        cdef int n_present = 0
+        cdef np.intp_t j
+        for j in range(size):
+            if x1[j] >= 0 or x2[j] >= 0:
+                n_present += 1
+                if x1[j] != x2[j]:
+                    n_unequal += 1
+        if n_present > 0:
+            return float(n_unequal) / n_present
+        else:
+            return 0.0
 
 
 # ------------------------------------------------------------
